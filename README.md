@@ -20,6 +20,23 @@ The adapter has been tested to work with DOS, Windows 3.1, Windows 95 and 98 ser
 
 Notable changes for users, see more detailed changelogs at the releases.
 
+Since v2.0.0:
+- Improved Pico CTS handshake robustness to better recover when the adapter is restarted while the retro-side mouse driver is already running.
+- Added CTS low-state debounce and re-ident cooldown to reduce accidental repeated identification bursts and long-session latency spikes.
+- Fixed a protocol bounds issue when decoding saved settings.
+- Fixed a Pico serial terminal writer off-by-one read edge case.
+- Improved Linux serial TX wait handling by checking actual pending bytes in the kernel output queue.
+- Updated Linux settings file I/O to use binary read/write modes.
+- Hardened Pico flash settings writes with explicit page-aligned padded buffering.
+- Added support for a 0.91 inch SSD1306 I2C OLED display (128x32)
+- Added support for a single external configuration button on the Pico build
+- Added on-device status screens for USB, serial link, speed, mouse type, firmware version, and debug information
+- Added on-device speed adjustment, save confirmation, and multi-click button actions for type selection, speed setup, and debug mode
+- Added bitmap/icon rendering support for OLED intro, save, and debug screens
+- Improved USB handling and timing behavior for better responsiveness and more reliable interaction with connected mice
+- Improved firmware UX with splash screen updates, visual status feedback, and timeout-based menu handling
+- Updated project firmware version to 2.0.0
+
 Since v1.6.0:
 - Console is now accessed with `backspace` rather than `enter` key to avoid Windows ATDT autodetect
 - Saving settings to non-volatile memory, both for Pico an Linux builds
@@ -51,6 +68,19 @@ Once the mouse is initialized - hold down both left and right mouse buttons. The
 - Scroll mouse wheel down to reduce sensitivity
 
 One mouse wheel click adds/reduces sensitivity by a factor of 0.2, you can adjust sensitivity between 0.2 and 3.0.
+
+## Pico single-button controls
+
+The Raspberry Pico build also supports configuration through a single external button connected to the configured GPIO pin.
+
+- 1x short press: cycle serial mouse type
+- 2x short press: open the `SET SPEED` menu
+- In the `SET SPEED` menu, each short press increases the speed by 1 step
+- If no button press is detected in the `SET SPEED` menu for 10 seconds, the display returns to the normal status screen
+- 3x short press: toggle the debug screen
+- Hold the button for 5 seconds: save the current settings to flash
+
+The OLED screen provides feedback for these actions, including speed adjustment, saving, and the debug information screen.
 
 ## Serial console for configuration
 
@@ -156,12 +186,29 @@ Provides a stand-alone adapter running on a Raspberry Pico microcontroller for c
 ### Components
 - A Raspberry Pico microcontroller
 - One DIP MAX3232 chip or compatible, with 1x TX + 2x RX pins available.
+- Alternatively, a standard RS232 to TTL RS232 module with `VCC`, `GND`, `RX OUT`, `TX IN`, and `CTS` pins
 - 5x 0.1uF capacitors (charge pumps for MAX3232, cbypass, etc)
 - Serial header with RX, TX and CTS available
 - USB-A header to solder on, or alternatively a USB micro to USB-A host adapter for connecting a USB mouse to the Pico USB port
 - Few bits of wire/board to make connections
 - A suitable serial cable for connecting from the adapter to the computers serial port (see diagram)
 - A way to provide 5v power to the Pico (a USB charger or battery could be ideal)
+
+### Current firmware pinout
+
+The current Pico firmware uses the following GPIO assignments:
+
+- `GPIO 0`: UART TX to serial interface
+- `GPIO 1`: UART RX from serial interface
+- `GPIO 2`: CTS input from retro PC / serial interface
+- `GPIO 4`: I2C SDA for the 0.91 inch SSD1306 OLED
+- `GPIO 5`: I2C SCL for the 0.91 inch SSD1306 OLED
+- `GPIO 9`: External configuration button input (uses internal pull-up, connect button to GND)
+- `GPIO 25`: On-board Pico LED status indicator
+
+The OLED is expected at I2C address `0x3C` and the current firmware targets a `128x32` SSD1306 display.
+
+When using an RS232 to TTL module, map the module pins so that Pico UART TX reaches module `TXIN`, module `RXOUT` reaches Pico UART RX, and `CTS` is connected to Pico CTS input.
 
 ## Build & install
 ```

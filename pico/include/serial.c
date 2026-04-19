@@ -82,7 +82,7 @@ int serial_write_terminal(int uart_id, uint8_t *buffer, int size) {
   // For now uart is what gets set in Core 1 loop.
   //uart_inst_t* uart = get_uart(uart_id);
   int bytes=0;
-  for(int pos=0; pos <= size; pos++) {
+  for(int pos=0; pos < size; pos++) {
     if(buffer[pos] == '\0') { return bytes; }
     // Convert LF to CRLF
     else if(buffer[pos] == '\n') {

@@ -16,6 +16,7 @@
 
 #include "pico/flash.h"
 #include "hardware/flash.h"
+#include <string.h>
 
 #include "../shared/crc8/crc8.h"
 
@@ -37,6 +38,7 @@
 // Pointer to flash storage area
 // Should likely be a const, but causes issues with interface compatibility for Linux currently
 uint8_t *flash_target_contents = (uint8_t *) (XIP_BASE + FLASH_TARGET);
+static uint8_t flash_write_buffer[FLASH_SECTOR_SIZE] = {0};
 
 // This function will be called when it's safe to call flash_range_erase
 static void call_flash_range_erase(void *param) {
@@ -73,7 +75,11 @@ void write_flash_settings(uint8_t *buffer, size_t size) {
    if(write_modulo > 0) { write_size = (size / FLASH_PAGE_SIZE + 1) * FLASH_PAGE_SIZE; }
    else { write_size = (size / FLASH_PAGE_SIZE) * FLASH_PAGE_SIZE; }
 
-   uintptr_t params[] = { FLASH_TARGET, (uintptr_t)buffer, write_size };
+   hard_assert(write_size <= FLASH_SECTOR_SIZE);
+   memset(flash_write_buffer, 0, sizeof(flash_write_buffer));
+   memcpy(flash_write_buffer, buffer, size);
+
+   uintptr_t params[] = { FLASH_TARGET, (uintptr_t)flash_write_buffer, write_size };
    // timeout = UINT32_MAX
    int rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
    hard_assert(rc == PICO_OK);

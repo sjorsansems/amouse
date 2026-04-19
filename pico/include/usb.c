@@ -16,10 +16,19 @@
 
 /* Interface adapted from tinyusb examples */
 
+#include <stdio.h>
+#include "pico/stdlib.h"
+
 #include "usb.h"
+#include "oled.h"
 
 #include "../../shared/mouse.h"
 
+bool g_usb_device_connected = false;
+uint32_t g_usb_status_message_until = 0;
+char g_usb_status_message[24] = {0};
+
+#define USB_STATUS_DURATION_US 2000000
 
 /*** Memory allocations ***/
 
@@ -49,6 +58,13 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
     hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_HID_REPORT, desc_report, desc_len);
   }
 
+  if (itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
+    g_usb_device_connected = true;
+    snprintf(g_usb_status_message, sizeof(g_usb_status_message), "USB: Mouse connected");
+    g_usb_status_message_until = time_us_32() + USB_STATUS_DURATION_US;
+    oled_write_text(g_usb_status_message, 1);
+  }
+
   // request to receive report
   // tuh_hid_report_received_cb() will be invoked when report is available
   if ( !tuh_hid_receive_report(dev_addr, instance) )
@@ -60,8 +76,12 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 // Invoked when device with hid interface is un-mounted
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
-  // TODO: Clean up after HID device.
-  //printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  (void)dev_addr;
+  (void)instance;
+  g_usb_device_connected = false;
+  snprintf(g_usb_status_message, sizeof(g_usb_status_message), "USB: Mouse disconnected");
+  g_usb_status_message_until = time_us_32() + USB_STATUS_DURATION_US;
+  oled_write_text(g_usb_status_message, 1);
 }
 
 // Invoked when received report from device via interrupt endpoint

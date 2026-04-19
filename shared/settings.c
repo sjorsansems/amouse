@@ -81,7 +81,7 @@ bool settings_decode(uint8_t *binary_settings, mouse_opts_t *options) {
     if(!state) { return false; }
 
     uint8_t sens;
-    options->protocol = clampi(settings1 & 0x03, 0, 3);        // 0x03 == 0b11
+    options->protocol = clampi(settings1 & 0x03, 0, 2);        // 0x03 == 0b11
     sens = (settings1 >> 2) & 0x0F;                            // Shifting right to get rid of proto, 0x0F == 0b1111
     options->sensitivity  = clampf(sens * 0.2, 0.2, 3.0);
     options->wheel        = (bool)(settings1 >> 6) & 0x01;    // Shifting right to get rid of proto and sensitivity, 0x01 is a bool

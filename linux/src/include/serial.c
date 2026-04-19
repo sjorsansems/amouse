@@ -53,17 +53,20 @@ bool serial_waitfor_tx(uint32_t max_wait_us) {
 
   struct timespec time_timeout;
   time_timeout = get_target_time(0, max_wait_us * 1000); // Convert from micro to nanoseconds
+  int pending = 0;
 
   do {
     a_usleep(10);
+
+    if(ioctl(fd, TIOCOUTQ, &pending) == 0 && pending == 0) {
+      return true; // Finished within timeout
+    }
 
     if(timespec_reached(&time_timeout)) {
       return false; // Timed out
     }
 
-  } while(1); // TODO: Check queue
-
-  return true; // Finished within timeout
+  } while(1);
 }
 
 // Non-blocking read

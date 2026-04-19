@@ -57,7 +57,7 @@ uint8_t* ptr_flash_settings() {
     get_config_path(&filepath[0]);
 
     FILE *fp;
-    fp = fopen(filepath, "r");
+    fp = fopen(filepath, "rb");
     if(fp) {
         size_t elems_read = fread(&flash_storage_buffer, 1, SETTINGS_SIZE, fp);
         if(elems_read < SETTINGS_SIZE) {
@@ -86,7 +86,7 @@ void write_flash_settings(uint8_t *buffer, size_t size) {
     get_config_path(&filepath[0]);
 
     FILE *fp;
-    fp = fopen(filepath, "w");
+    fp = fopen(filepath, "wb");
     if(fp) {
         if(! (fwrite(buffer, size, 1, fp) == 1)) { // Returns num of writes successful
             fprintf(stderr, "Error while writing config(%s): %d: %s\n", filepath, errno, strerror(errno));
