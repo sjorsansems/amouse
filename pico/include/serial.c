@@ -69,9 +69,10 @@ void mouse_serial_init(int uart_id) {
 
 int serial_write(int uart_id, uint8_t *buffer, int size) {
   // For now uart is what gets set in Core 1 loop.
+  // queue_add_blocking provides natural backpressure: main loop rate is
+  // throttled by UART drain speed (1200 baud) without needing explicit delays.
   int bytes=0;
   for(; bytes < size; bytes++) {
-    // Offload serial write to Core 1
     queue_add_blocking(&g_serial_queue, &buffer[bytes]);
   }
   return bytes;
@@ -141,6 +142,13 @@ int serial_read(int uart_id, uint8_t *buffer, int size) {
 // for the moment just a wrap-around but easier to work with as a endpoint for changes later.
 void serial_queue_pop(queue_t *queue, uint8_t *buffer) {
   queue_remove_blocking(queue, buffer); // TODO: Test if returns correct data now
+}
+
+void serial_queue_clear(queue_t *queue) {
+  uint8_t discard;
+  while(queue_try_remove(queue, &discard)) {
+    // Drain queue.
+  }
 }
 
 int get_pins(int flag) {

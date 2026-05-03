@@ -20,6 +20,14 @@ The adapter has been tested to work with DOS, Windows 3.1, Windows 95 and 98 ser
 
 Notable changes for users, see more detailed changelogs at the releases.
 
+Since v2.1.0:
+- Added automatic USB HID pipeline restart when TinyUSB report re-arming fails, so a dropped HID receive chain can recover without power-cycling.
+- Added automatic serial path recovery watchdog for active-mouse/no-TX stall conditions.
+- Added OLED runtime reset notifications (`USB HID reset` and `Serial rst #N`) in the normal status flow.
+- Added serial recovery counter to the on-device diagnostics screen (`REC`).
+- Fixed false USB HID reset notifications while the mouse is idle (no movement is now treated as normal behavior).
+- Fixed a long-uptime Pico timing issue in TX/RX deadline checks that could cause delayed/hitching mouse response over time.
+
 Since v2.0.0:
 - Improved Pico CTS handshake robustness to better recover when the adapter is restarted while the retro-side mouse driver is already running.
 - Added CTS low-state debounce and re-ident cooldown to reduce accidental repeated identification bursts and long-session latency spikes.

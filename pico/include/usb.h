@@ -36,8 +36,11 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance);
 extern bool g_usb_device_connected;
 extern uint32_t g_usb_status_message_until;
 extern char g_usb_status_message[24];
+extern bool g_hid_pipeline_broken;
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+
+void usb_restart_hid_reports(void);
 
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 

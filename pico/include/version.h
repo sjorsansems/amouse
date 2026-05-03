@@ -5,7 +5,7 @@
 #define STR(x) STR_HELPER(x)
 
 #define V_MAJOR 2
-#define V_MINOR 0
+#define V_MINOR 1
 #define V_REVISION 0
 #define V_FULL STR(V_MAJOR) STR(.) STR(V_MINOR) STR(.) STR(V_REVISION)
 

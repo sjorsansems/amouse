@@ -28,6 +28,22 @@ bool g_usb_device_connected = false;
 uint32_t g_usb_status_message_until = 0;
 char g_usb_status_message[24] = {0};
 
+// Saved HID device address and instance for pipeline restart
+static uint8_t g_hid_dev_addr = 0;
+static uint8_t g_hid_instance = 0;
+
+// Set when tuh_hid_receive_report() fails; main loop should call usb_restart_hid_reports()
+bool g_hid_pipeline_broken = false;
+
+// Restart the HID report pipeline if it broke (tuh_hid_receive_report failed)
+void usb_restart_hid_reports(void) {
+  if(g_usb_device_connected && g_hid_dev_addr != 0) {
+    if(tuh_hid_receive_report(g_hid_dev_addr, g_hid_instance)) {
+      g_hid_pipeline_broken = false;
+    }
+  }
+}
+
 #define USB_STATUS_DURATION_US 2000000
 
 /*** Memory allocations ***/
@@ -60,6 +76,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 
   if (itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
     g_usb_device_connected = true;
+    g_hid_dev_addr = dev_addr;
+    g_hid_instance = instance;
     snprintf(g_usb_status_message, sizeof(g_usb_status_message), "USB: Mouse connected");
     g_usb_status_message_until = time_us_32() + USB_STATUS_DURATION_US;
     oled_write_text(g_usb_status_message, 1);
@@ -109,7 +127,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   // continue to request to receive report
   if ( !tuh_hid_receive_report(dev_addr, instance) )
   {
-    // Error: cannot request to receive report
+    g_hid_pipeline_broken = true;  // Signal main loop to restart pipeline
   }
 }
 

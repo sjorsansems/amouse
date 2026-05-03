@@ -73,7 +73,11 @@ static const uint8_t bitmap14[] = {
 mouse_state_t mouse;
 
 static uint32_t time_tx_target;  
-static uint32_t time_rx_target;  
+static uint32_t time_rx_target;
+
+static inline bool deadline_reached_u32(uint32_t now, uint32_t target) {
+    return (int32_t)(now - target) >= 0;
+}
 
 uint8_t serial_buffer[2] = {0};
 
@@ -98,6 +102,9 @@ uint32_t last_hid_activity_us = 0;
 #define STATUS_MESSAGE_DURATION_US 2000000
 #define SPEED_ADJUST_TIMEOUT_US 10000000
 #define DATA_ACTIVITY_TIMEOUT_US 2000000
+#define SERIAL_RECOVERY_COOLDOWN_US 2000000
+// TX watchdog: if mouse is active but no TX packet sent for this long, reset
+#define TX_WATCHDOG_US 5000000
 #define CTS_LOW_STABLE_US 2000
 #define CTS_REIDENT_COOLDOWN_US 1500000
 #define CTS_BOOTSTRAP_LOW_US 1500000
@@ -111,6 +118,11 @@ uint32_t led_timer = 0;
 uint32_t cts_low_since = 0;
 uint32_t cts_boot_started = 0;
 uint32_t cts_last_ident = 0;
+uint32_t serial_last_recovery = 0;
+uint32_t serial_recovery_count = 0;
+uint32_t serial_last_tx_us = 0;
+static bool prev_mouse_active = false;
+static uint32_t hid_pipeline_last_restart_us = 0;
 
 /*** Timing ***/
 static void save_current_settings(void) {
@@ -164,7 +176,7 @@ static void show_diagnostic_screen(uint32_t now, bool cts_pin) {
     snprintf(line0, sizeof(line0), "DATA: %s", data_active ? "OK" : "IDLE");
     snprintf(line1, sizeof(line1), "CTS: %s", cts_pin ? "HIGH" : "LOW");
     snprintf(line2, sizeof(line2), "UP: %lus", (unsigned long)uptime_s);
-    snprintf(line3, sizeof(line3), "FW: %s", V_FULL);
+    snprintf(line3, sizeof(line3), "REC: %lu", (unsigned long)serial_recovery_count);
     oled_draw_bitmap_mono(0, 4, bitmap14, 24, 24);
     oled_write_text("", 0);
     oled_write_text_at(line0, 0, 32);
@@ -225,6 +237,24 @@ extern void collect_mouse_report(hid_mouse_report_t const* p_report) {
     last_hid_activity_us = time_us_32();
 }
 
+static void recover_serial_path(uint32_t now) {
+    serial_queue_clear(&g_serial_queue);
+    reset_mouse_state(&mouse);
+    time_tx_target = now + U_SERIALDELAY_3B;
+    time_rx_target = now + U_FULL_SECOND;
+    serial_last_tx_us = now;
+    if(!gpio_get(UART_CTS_PIN)) {
+        mouse.pc_state = CTS_TOGGLED;
+        cts_last_ident = now;
+        mouse_ident(0, g_mouse_options.wheel);
+    }
+    serial_recovery_count++;
+    char rec_msg[16];
+    snprintf(rec_msg, sizeof(rec_msg), "Serial rst #%lu", (unsigned long)serial_recovery_count);
+    show_status_message(rec_msg, now);
+    serial_last_recovery = now;
+}
+
 /*** Core 1 thread ***/
 void core1_tightloop() {
     flash_safe_execute_core_init();
@@ -277,7 +307,8 @@ int main() {
     oled_clear();
 
     time_tx_target = time_us_32() + U_SERIALDELAY_3B;
-    time_rx_target = time_us_32() + U_FULL_SECOND; 
+    time_rx_target = time_us_32() + U_FULL_SECOND;
+    serial_last_tx_us = time_us_32();
 
     bool cts_pin = false;
     uint32_t oled_update_timer = time_us_32();
@@ -287,7 +318,7 @@ int main() {
         uint32_t now = time_us_32();
 
         // ===== SERIAL CONSOLE =====
-        if(time_reached(time_rx_target)) {
+        if(deadline_reached_u32(now, time_rx_target)) {
             if(serial_read(0, serial_buffer, 1) > 0) {
                 if(serial_buffer[0] == '\b') {
                     console(0);
@@ -298,6 +329,32 @@ int main() {
 
         // ===== CTS / Mouse Handling =====
         cts_pin = gpio_get(UART_CTS_PIN);
+
+        // ===== USB HID WATCHDOG =====
+        // Als tuh_hid_receive_report() mislukte in de callback, herstart de pipeline.
+        if(g_hid_pipeline_broken) {
+            usb_restart_hid_reports();
+            hid_pipeline_last_restart_us = now;
+            show_status_message("USB HID reset", now);
+        }
+
+        // ===== TX WATCHDOG =====
+        // Als de muis actief is maar al TX_WATCHDOG_US geen pakket is verstuurd: reset.
+        {
+            bool mouse_active = g_usb_device_connected && ((now - last_hid_activity_us) < DATA_ACTIVITY_TIMEOUT_US);
+            // Reset watchdog timer when mouse becomes active again after a pause,
+            // or just after a HID pipeline restart (pipeline may need time to deliver first report).
+            if((mouse_active && !prev_mouse_active) ||
+               ((now - hid_pipeline_last_restart_us) < TX_WATCHDOG_US)) {
+                serial_last_tx_us = now;
+            }
+            prev_mouse_active = mouse_active;
+            bool tx_stalled   = mouse_active && mouse.pc_state > CTS_LOW_INIT &&
+                                ((now - serial_last_tx_us) > TX_WATCHDOG_US);
+            if(tx_stalled && ((now - serial_last_recovery) > SERIAL_RECOVERY_COOLDOWN_US)) {
+                recover_serial_path(now);
+            }
+        }
 
         if(cts_pin) {
             cts_low_since = 0;
@@ -329,12 +386,15 @@ int main() {
 
         if(mouse.pc_state > CTS_LOW_INIT) {
             tuh_task();
-            if(time_reached(time_tx_target) || mouse.force_update) {
+            if(deadline_reached_u32(now, time_tx_target) || mouse.force_update) {
                 runtime_settings(&mouse);
                 input_sensitivity(&mouse);
                 update_mouse_state(&mouse);
                 queue_tx(&mouse);
-                if(mouse.update > 0) serial_write(0, mouse.state, mouse.update);
+                if(mouse.update > 0) {
+                    serial_write(0, mouse.state, mouse.update);
+                    serial_last_tx_us = time_us_32();
+                }
                 reset_mouse_state(&mouse);
             }
         }
