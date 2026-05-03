@@ -1,0 +1,2 @@
+amconfig.c(54): Warning! W131: No prototype found for function 'outp'
+amconfig.c(65): Warning! W131: No prototype found for function 'inp'

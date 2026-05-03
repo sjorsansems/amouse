@@ -27,6 +27,7 @@ Since v2.1.0:
 - Added serial recovery counter to the on-device diagnostics screen (`REC`).
 - Fixed false USB HID reset notifications while the mouse is idle (no movement is now treated as normal behavior).
 - Fixed a long-uptime Pico timing issue in TX/RX deadline checks that could cause delayed/hitching mouse response over time.
+- Added DOS configuration tools: `AMCFG.EXE` (simple, one-liner commands) and `AMCONFIG.EXE` (interactive menu with automatic COM port scan).
 
 Since v2.0.0:
 - Improved Pico CTS handshake robustness to better recover when the adapter is restarted while the retro-side mouse driver is already running.
@@ -240,12 +241,63 @@ See `diagrams` directory for how to wire the Pico correctly to talk to a serial 
 
 Provided that everything is connected up correctly, the adapter will auto-detect any mouse driver initialization from the PC and by default introduce itself as a Microsoft mouse. You can then use your USB mouse as a serial mouse.
 
+## DOS configuration utilities
+
+Two DOS utilities are included under the `dos/` directory to change adapter settings over the same serial port, without needing a serial terminal program.
+
+Both tools use direct 16550 UART register I/O (same as DOS mouse drivers) and communicate at 1200, 7N1.
+
+### AMCFG.EXE — simple command-line tool
+
+Specify the COM port and command directly:
+
+```
+AMCFG COM2 show
+AMCFG COM2 speed 11 save
+AMCFG COM2 proto 2 save
+AMCFG COM2 swap 1 save
+```
+
+Commands: `show`, `speed <2..30> [save]`, `proto <0..2> [save]`, `swap [0|1] [save]`
+
+### AMCONFIG.EXE — interactive menu tool
+
+Automatically scans COM1-COM4 for the adapter and opens an interactive menu:
+
+```
+AMCONFIG.EXE
+```
+
+Or skip the scan by specifying the port directly:
+
+```
+AMCONFIG.EXE COM2
+```
+
+Menu options:
+- Show current settings
+- Set sensitivity (2-30)
+- Set mouse protocol (0=MS 2-button, 1=Logitech, 2=MS Wheel)
+- Swap left/right buttons
+- Save settings to flash
+
+Both tools enter the amouse serial console automatically (using backspace), execute the command, and exit — no manual terminal interaction needed.
+
+Build notes and source code are in `dos/BUILD-DOS.TXT` and `dos/amcfg.c` / `dos/amconfig.c`.
+
+When running under DOSBox, configure serial passthrough to your real COM port first, for example:
+
+```
+config -set serial serial1=directserial realport:COM2
+```
+
+Then mount the project folder and run the tool from the `dos` directory.
+
 # Planned future features
 
 - [x] Storing settings like sensitivity and used mouse protocol in a non-volatile manner.
+- [x] DOS-native software for setting options without serial terminal program.
 - [ ] Mouse Systems protocol.
-- [ ] Graceful handling of reconnecting USB devices.
-- [ ] DOS-native software for setting options without serial terminal program.
 
 # FAQ
 

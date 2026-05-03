@@ -1,0 +1,40 @@
+amcfg DOS build notes
+=====================
+
+This utility uses BIOS INT 14h and should compile with common DOS compilers.
+
+OpenWatcom (recommended):
+  wcl -ms -bt=dos amcfg.c -fe=AMCFG.EXE
+
+Borland/Turbo C:
+  tcc amcfg.c
+
+Usage:
+  AMCFG COM1 show
+  AMCFG COM1 speed 11 save
+  AMCFG COM1 proto 2 save
+  AMCFG COM1 swap 1 save
+
+Notes:
+- Serial settings are fixed to 1200 baud, 7 data bits, no parity, 1 stop bit.
+- The tool sends backspace to enter the existing amouse serial config console.
+- 'save' writes current settings to flash using the existing menu flow.
+
+DOSBox quick start
+==================
+
+1) Configure serial passthrough in DOSBox to your real COM port:
+  serial1=directserial realport:COM1
+
+  You can set this in dosbox.conf, or inside DOSBox:
+  config -set serial serial1=directserial realport:COM1
+
+2) Mount the project folder and run AMCFG:
+  mount c "C:\\Users\\Sjors\\OneDrive\\Project\\amouse - Final"
+  c:
+  cd dos
+  AMCFG COM1 show
+  AMCFG COM1 speed 11 save
+
+3) If COM1 is not the correct Windows port, use COM2/COM3/etc in both
+  DOSBox `realport:` and AMCFG command line.
